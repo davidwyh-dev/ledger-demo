@@ -28,6 +28,7 @@ type LedgerState = {
   transactions: TransactionWithPostings[];
   accounts: AccountBalance[];
   highlightedAccounts: string[];
+  selectedTxnId: number | null;
   storyStep: { scenarioSlug: string; index: number; story: string; label: string } | null;
   toasts: Toast[];
   isPolling: boolean;
@@ -45,6 +46,7 @@ type LedgerState = {
   setLastSeenId: (id: number) => void;
   setHighlight: (codes: string[]) => void;
   clearHighlight: () => void;
+  setSelectedTxnId: (id: number | null) => void;
   setStoryStep: (s: LedgerState['storyStep']) => void;
   pushToast: (t: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
@@ -57,6 +59,7 @@ export const useLedger = create<LedgerState>((set) => ({
   transactions: [],
   accounts: [],
   highlightedAccounts: [],
+  selectedTxnId: null,
   storyStep: null,
   toasts: [],
   isPolling: false,
@@ -75,7 +78,9 @@ export const useLedger = create<LedgerState>((set) => ({
     }),
   setLastSeenId: (id) => set({ lastSeenId: id }),
   setHighlight: (codes) => set({ highlightedAccounts: codes }),
-  clearHighlight: () => set({ highlightedAccounts: [] }),
+  clearHighlight: () => set({ highlightedAccounts: [], selectedTxnId: null }),
+  setSelectedTxnId: (id) =>
+    set((s) => ({ selectedTxnId: s.selectedTxnId === id ? null : id })),
   setStoryStep: (s) => set({ storyStep: s }),
   pushToast: (t) =>
     set((s) => ({ toasts: [...s.toasts, { ...t, id: Math.random().toString(36).slice(2) }] })),
@@ -97,6 +102,7 @@ export const useLedger = create<LedgerState>((set) => ({
       transactions: [],
       accounts: [],
       highlightedAccounts: [],
+      selectedTxnId: null,
       storyStep: null,
       lastSeenId: 0,
       lastWriteLsn: null,
