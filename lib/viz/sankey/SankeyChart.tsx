@@ -11,10 +11,12 @@ export default function SankeyChart({
   nodes,
   links,
   currency,
+  selectedTxnId,
 }: {
   nodes: Node[];
   links: SankeyFlow[];
   currency: string;
+  selectedTxnId: number | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth]   = useState(800);
@@ -59,22 +61,39 @@ export default function SankeyChart({
   return (
     <div ref={containerRef} className="h-full w-full">
       <svg width={width} height={height} className="block">
+        <defs>
+          <filter id="sankey-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
         <g>
-          {layout.links.map((link, i) => (
-            <path
-              key={i}
-              d={sankeyLinkHorizontal()(link as never) ?? undefined}
-              fill="none"
-              stroke="currentColor"
-              strokeOpacity={0.18}
-              strokeWidth={Math.max(1, link.width ?? 1)}
-              className="text-indigo-500"
-            >
-              <title>
-                {`${typeof link.source === 'object' ? (link.source as Node).label : link.source} → ${typeof link.target === 'object' ? (link.target as Node).label : link.target}: ${formatMoney(Math.round((link as { value?: number }).value ?? 0), currency)}`}
-              </title>
-            </path>
-          ))}
+          {layout.links.map((link, i) => {
+            const txnIds = (link as unknown as SankeyFlow).txnIds ?? [];
+            const matches = selectedTxnId !== null && txnIds.includes(selectedTxnId);
+            const dimmed = selectedTxnId !== null && !matches;
+            const opacity = matches ? 0.85 : dimmed ? 0.06 : 0.18;
+            return (
+              <path
+                key={i}
+                d={sankeyLinkHorizontal()(link as never) ?? undefined}
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity={opacity}
+                strokeWidth={Math.max(1, link.width ?? 1)}
+                filter={matches ? 'url(#sankey-glow)' : undefined}
+                className={matches ? 'text-[color:var(--color-accent)]' : 'text-indigo-500'}
+                style={{ transition: 'stroke-opacity 200ms ease, color 200ms ease' }}
+              >
+                <title>
+                  {`${typeof link.source === 'object' ? (link.source as Node).label : link.source} → ${typeof link.target === 'object' ? (link.target as Node).label : link.target}: ${formatMoney(Math.round((link as { value?: number }).value ?? 0), currency)}`}
+                </title>
+              </path>
+            );
+          })}
         </g>
         <g>
           {layout.nodes.map((n) => (
