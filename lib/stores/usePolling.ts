@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useLedger } from './ledgerStore';
 
 const INTERVAL = 750;
@@ -22,8 +22,6 @@ export function usePolling(active = true) {
   const appendTransactions = useLedger((s) => s.appendTransactions);
   const setAccounts        = useLedger((s) => s.setAccounts);
   const setPolling         = useLedger((s) => s.setPolling);
-  const lastSeenIdRef = useRef(0);
-  const lastWriteLsnRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!active) {
@@ -36,7 +34,6 @@ export function usePolling(active = true) {
     let inFlight = false;
     let pendingKick = false;
     let seenLsn: string | null = useLedger.getState().lastWriteLsn;
-    lastWriteLsnRef.current = seenLsn;
 
     async function runFetch() {
       // Coalesce overlapping calls: if a fetch is in flight when an LSN
@@ -48,11 +45,11 @@ export function usePolling(active = true) {
       }
       inFlight = true;
       try {
-        const lsn = lastWriteLsnRef.current;
-        const lsnQs = lsn ? `&after_lsn=${encodeURIComponent(lsn)}` : '';
-        const acctQs = lsn ? `?after_lsn=${encodeURIComponent(lsn)}` : '';
+        const { lastSeenId, lastWriteLsn } = useLedger.getState();
+        const lsnQs = lastWriteLsn ? `&after_lsn=${encodeURIComponent(lastWriteLsn)}` : '';
+        const acctQs = lastWriteLsn ? `?after_lsn=${encodeURIComponent(lastWriteLsn)}` : '';
         const [txnRes, acctRes] = await Promise.all([
-          fetch(`/api/transactions?since=${lastSeenIdRef.current}${lsnQs}`, { cache: 'no-store' }),
+          fetch(`/api/transactions?since=${lastSeenId}${lsnQs}`, { cache: 'no-store' }),
           fetch(`/api/accounts${acctQs}`, { cache: 'no-store' }),
         ]);
         const txnJson = await txnRes.json();
@@ -60,8 +57,6 @@ export function usePolling(active = true) {
         if (cancelled) return;
         if (Array.isArray(txnJson.transactions) && txnJson.transactions.length > 0) {
           appendTransactions(txnJson.transactions);
-          const maxId = Math.max(...txnJson.transactions.map((t: { id: number }) => t.id));
-          if (maxId > lastSeenIdRef.current) lastSeenIdRef.current = maxId;
         }
         if (Array.isArray(acctJson.accounts)) setAccounts(acctJson.accounts);
       } catch {
@@ -82,14 +77,12 @@ export function usePolling(active = true) {
     }
     tick();
 
-    // Mirror lastWriteLsn into the ref AND trigger an immediate fetch when
-    // it advances (i.e. a write just landed). The reducer is monotonic, so
-    // any change here is a real advance — but we still compare to avoid
-    // re-firing on unrelated store updates.
+    // Trigger an immediate fetch whenever lastWriteLsn changes (i.e. a write
+    // just landed, or reset() cleared it). Compare to avoid re-firing on
+    // unrelated store updates.
     const unsub = useLedger.subscribe((s) => {
       if (s.lastWriteLsn === seenLsn) return;
       seenLsn = s.lastWriteLsn;
-      lastWriteLsnRef.current = s.lastWriteLsn;
       void runFetch();
     });
 
