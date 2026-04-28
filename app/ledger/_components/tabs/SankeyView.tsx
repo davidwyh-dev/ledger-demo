@@ -10,8 +10,9 @@ const CURRENCIES = ['ALL', 'USD', 'EUR'] as const;
 type CurrencyFilter = typeof CURRENCIES[number];
 
 export default function SankeyView() {
-  const transactions = useLedger((s) => s.transactions);
-  const accounts     = useLedger((s) => s.accounts);
+  const transactions  = useLedger((s) => s.transactions);
+  const accounts      = useLedger((s) => s.accounts);
+  const selectedTxnId = useLedger((s) => s.selectedTxnId);
   const [filter, setFilter] = useState<CurrencyFilter>('USD');
 
   const { nodes, links } = useMemo(
@@ -48,7 +49,12 @@ export default function SankeyView() {
             </p>
           </div>
         ) : (
-          <SankeyChart nodes={nodes} links={links} currency={filter === 'ALL' ? 'USD' : filter} />
+          <SankeyChart
+            nodes={nodes}
+            links={links}
+            currency={filter === 'ALL' ? 'USD' : filter}
+            selectedTxnId={selectedTxnId}
+          />
         )}
       </div>
     </div>

@@ -6,6 +6,7 @@ export type SankeyFlow = {
   target: string;
   value: number;
   currency: string;
+  txnIds: number[];
 };
 
 /**
@@ -33,7 +34,7 @@ export function buildFlows(
     labelByCode.set(a.code, a.name);
   }
 
-  type Edge = { source: string; target: string; currency: string; value: number };
+  type Edge = { source: string; target: string; currency: string; value: number; txnIds: Set<number> };
   const aggregate = new Map<string, Edge>();
 
   for (const txn of transactions) {
@@ -56,8 +57,9 @@ export function buildFlows(
           const value = (out.amt * inn.amt) / totalIn;
           if (value <= 0) continue;
           const key = `${out.code}→${inn.code}|${ccy}`;
-          const e = aggregate.get(key) ?? { source: out.code, target: inn.code, currency: ccy, value: 0 };
+          const e = aggregate.get(key) ?? { source: out.code, target: inn.code, currency: ccy, value: 0, txnIds: new Set<number>() };
           e.value += value;
+          e.txnIds.add(txn.id);
           aggregate.set(key, e);
         }
       }
@@ -70,7 +72,13 @@ export function buildFlows(
     if (e.value < 1) continue;
     nodeIds.add(e.source);
     nodeIds.add(e.target);
-    links.push(e);
+    links.push({
+      source: e.source,
+      target: e.target,
+      currency: e.currency,
+      value: e.value,
+      txnIds: [...e.txnIds],
+    });
   }
 
   const nodes = [...nodeIds].map((id) => ({ id, label: labelByCode.get(id) ?? id }));

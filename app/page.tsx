@@ -7,7 +7,6 @@ export default function Home() {
       <header className="flex items-center justify-between px-6 py-4 border-b">
         <span className="font-semibold tracking-tight">Ledger Demo</span>
         <nav className="flex items-center gap-4 text-sm text-[color:var(--color-muted-foreground)]">
-          <Link href="/how-it-works" className="hover:text-foreground">How it works</Link>
           <Link
             href="/ledger"
             className="rounded-md bg-[color:var(--color-foreground)] text-[color:var(--color-background)] px-3 py-1.5 hover:opacity-90"
@@ -37,12 +36,6 @@ export default function Home() {
             >
               Open the demo <ArrowRight className="size-4" />
             </Link>
-            <Link
-              href="/how-it-works"
-              className="rounded-md border px-5 py-2.5 font-medium hover:bg-[color:var(--color-muted)]/60"
-            >
-              How it works
-            </Link>
           </div>
         </div>
 
@@ -50,7 +43,7 @@ export default function Home() {
           <Card
             icon={<Database className="size-4" />}
             title="The SQL is the demo."
-            body="Invariants live in Postgres CHECK constraints, deferred constraint triggers, and REVOKE UPDATE/DELETE — not in JavaScript. The how-it-works page renders the actual schema."
+            body="Invariants live in Postgres CHECK constraints, deferred constraint triggers, and REVOKE UPDATE/DELETE — not in JavaScript. Open the demo and click 'how it works' to see the actual schema."
           />
           <Card
             icon={<Zap className="size-4" />}
