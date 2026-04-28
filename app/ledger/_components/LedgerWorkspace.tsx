@@ -6,16 +6,16 @@ import { useLedger } from '@/lib/stores/ledgerStore';
 import TAccountsView from './tabs/TAccountsView';
 import StreamView from './tabs/StreamView';
 import SankeyView from './tabs/SankeyView';
-import ControlPanel from './ControlPanel';
+import ActionsDropdown from './ActionsDropdown';
 import StoryModePanel from './StoryModePanel';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-type Tab = 't-accounts' | 'sankey' | 'stream';
+type Tab = 'ledger' | 'sankey';
 
 export default function LedgerWorkspace() {
   usePolling(true);
-  const [tab, setTab] = useState<Tab>('t-accounts');
+  const [tab, setTab] = useState<Tab>('ledger');
   const isPolling = useLedger((s) => s.isPolling);
   const txnCount = useLedger((s) => s.transactions.length);
 
@@ -30,29 +30,35 @@ export default function LedgerWorkspace() {
             <span className={cn('inline-block size-2 rounded-full bg-emerald-500', isPolling && 'live-dot')} />
             {isPolling ? 'live' : 'paused'} · {txnCount} txns
           </span>
+          <ActionsDropdown />
           <Link href="/how-it-works" className="hover:text-foreground">how it works</Link>
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
-        <main className="flex-1 flex flex-col min-w-0 border-r">
-          <nav className="flex items-center gap-1 border-b px-3 py-2">
-            <TabButton active={tab === 't-accounts'} onClick={() => setTab('t-accounts')}>T-accounts</TabButton>
-            <TabButton active={tab === 'sankey'}     onClick={() => setTab('sankey')}>Money flow</TabButton>
-            <TabButton active={tab === 'stream'}     onClick={() => setTab('stream')}>Transaction stream</TabButton>
-          </nav>
-          <div className="flex-1 overflow-auto">
-            {tab === 't-accounts' && <TAccountsView />}
-            {tab === 'sankey'     && <SankeyView />}
-            {tab === 'stream'     && <StreamView />}
-          </div>
-          <StoryModePanel />
-        </main>
-
-        <aside className="w-[360px] flex-shrink-0 overflow-y-auto">
-          <ControlPanel />
-        </aside>
-      </div>
+      <main className="flex-1 flex flex-col min-w-0 min-h-0">
+        <nav className="flex items-center gap-1 border-b px-3 py-2">
+          <TabButton active={tab === 'ledger'} onClick={() => setTab('ledger')}>Ledger</TabButton>
+          <TabButton active={tab === 'sankey'} onClick={() => setTab('sankey')}>Money flow</TabButton>
+        </nav>
+        <div className="flex-1 min-h-0">
+          {tab === 'ledger' && (
+            <div className="flex h-full min-h-0">
+              <div className="flex-1 min-w-0 overflow-auto">
+                <TAccountsView />
+              </div>
+              <div className="w-[420px] flex-shrink-0 border-l overflow-y-auto">
+                <StreamView />
+              </div>
+            </div>
+          )}
+          {tab === 'sankey' && (
+            <div className="h-full overflow-auto">
+              <SankeyView />
+            </div>
+          )}
+        </div>
+        <StoryModePanel />
+      </main>
     </div>
   );
 }

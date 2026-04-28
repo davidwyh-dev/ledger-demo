@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLedger } from '@/lib/stores/ledgerStore';
-import { cn, formatMoney } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const KIND_LABEL: Record<string, string> = {
   authorize: 'Authorize',
@@ -34,23 +33,25 @@ const KIND_HUE: Record<string, string> = {
 };
 
 export default function StreamView() {
-  const transactions = useLedger((s) => s.transactions);
+  const transactions    = useLedger((s) => s.transactions);
+  const selectedTxnId   = useLedger((s) => s.selectedTxnId);
+  const setSelectedTxnId = useLedger((s) => s.setSelectedTxnId);
   const ordered = [...transactions].sort((a, b) => b.id - a.id);
 
   if (ordered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-12 text-center">
-        <div className="text-lg font-medium mb-1">No transactions yet</div>
-        <p className="text-sm text-[color:var(--color-muted-foreground)] max-w-md">
-          The transaction stream is the chronological event log. Each row expands to show the postings that make up the transaction.
+      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        <div className="text-base font-medium mb-1">No transactions yet</div>
+        <p className="text-xs text-[color:var(--color-muted-foreground)] max-w-xs">
+          Each row here is one transaction. Click a row to highlight the postings it wrote in the T-accounts.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="p-4">
-      <ol className="flex flex-col gap-2">
+    <div className="p-3">
+      <ol className="flex flex-col gap-1.5">
         <AnimatePresence initial={false}>
           {ordered.map((t) => (
             <motion.li
@@ -60,7 +61,11 @@ export default function StreamView() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <TransactionRow t={t} />
+              <TransactionRow
+                t={t}
+                selected={selectedTxnId === t.id}
+                onClick={() => setSelectedTxnId(t.id)}
+              />
             </motion.li>
           ))}
         </AnimatePresence>
@@ -71,54 +76,31 @@ export default function StreamView() {
 
 function TransactionRow({
   t,
+  selected,
+  onClick,
 }: {
   t: import('@/lib/ledger/query').TransactionWithPostings;
+  selected: boolean;
+  onClick: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-md border bg-[color:var(--color-background)]">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[color:var(--color-muted)]/40"
-      >
-        <span className="font-mono text-xs text-[color:var(--color-muted-foreground)] w-10 shrink-0">#{t.id}</span>
-        <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', KIND_HUE[t.kind] ?? 'bg-zinc-100')}>
-          {KIND_LABEL[t.kind] ?? t.kind}
-        </span>
-        <span className="text-sm flex-1 truncate">{t.description}</span>
-        <span className="text-xs text-[color:var(--color-muted-foreground)] tabular-nums">
-          {new Date(t.occurredAt).toLocaleTimeString()}
-        </span>
-        <span className={cn('text-xs transition-transform', open && 'rotate-90')}>▶</span>
-      </button>
-      {open && (
-        <div className="border-t px-3 py-2 bg-[color:var(--color-muted)]/30">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-[color:var(--color-muted-foreground)]">
-              <tr>
-                <th className="text-left font-medium py-1">Account</th>
-                <th className="text-right font-medium py-1 text-[color:var(--color-debit)]">Debit</th>
-                <th className="text-right font-medium py-1 text-[color:var(--color-credit)]">Credit</th>
-              </tr>
-            </thead>
-            <tbody className="font-mono tabular-nums">
-              {t.postings.map((p) => (
-                <tr key={p.id}>
-                  <td className="py-0.5">
-                    <span className="text-xs text-[color:var(--color-muted-foreground)]">{p.accountCode}</span>
-                  </td>
-                  <td className={cn('py-0.5 text-right', p.direction === 'debit' ? 'text-[color:var(--color-debit)]' : 'text-[color:var(--color-muted-foreground)]')}>
-                    {p.direction === 'debit'  ? formatMoney(p.amountMinor, p.currency) : ''}
-                  </td>
-                  <td className={cn('py-0.5 text-right', p.direction === 'credit' ? 'text-[color:var(--color-credit)]' : 'text-[color:var(--color-muted-foreground)]')}>
-                    {p.direction === 'credit' ? formatMoney(p.amountMinor, p.currency) : ''}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-center gap-2 px-2.5 py-2 text-left rounded-md border transition-colors',
+        selected
+          ? 'border-[color:var(--color-accent)] bg-[color:var(--color-accent)]/10'
+          : 'bg-[color:var(--color-background)] hover:bg-[color:var(--color-muted)]/40',
       )}
-    </div>
+    >
+      <span className="font-mono text-xs text-[color:var(--color-muted-foreground)] w-8 shrink-0">#{t.id}</span>
+      <span className={cn('text-[11px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap', KIND_HUE[t.kind] ?? 'bg-zinc-100')}>
+        {KIND_LABEL[t.kind] ?? t.kind}
+      </span>
+      <span className="text-xs flex-1 truncate">{t.description}</span>
+      <span className="text-[10px] text-[color:var(--color-muted-foreground)] tabular-nums shrink-0">
+        {new Date(t.occurredAt).toLocaleTimeString()}
+      </span>
+    </button>
   );
 }

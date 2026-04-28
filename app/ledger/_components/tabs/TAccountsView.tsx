@@ -13,14 +13,31 @@ const TYPE_LABEL: Record<string, string> = {
   equity:    'Equity',
 };
 
+const TYPE_LABEL_PLURAL: Record<string, string> = {
+  asset:     'Assets',
+  liability: 'Liabilities',
+  revenue:   'Revenue',
+  expense:   'Expenses',
+  equity:    'Equity',
+};
+
+// Debit-normal types (left column = "Asset side") and credit-normal types
+// (right column = "Liability side"), per the accounting equation:
+//   Assets + Expenses = Liabilities + Equity + Revenue
+const ASSET_SIDE_TYPES = ['asset', 'expense'] as const;
+const LIABILITY_SIDE_TYPES = ['liability', 'equity', 'revenue'] as const;
+
+type Posting = { txnId: number; direction: 'debit' | 'credit'; amountMinor: number; currency: string; postingId: number };
+
 export default function TAccountsView() {
-  const accounts     = useLedger((s) => s.accounts);
-  const transactions = useLedger((s) => s.transactions);
-  const highlight    = useLedger((s) => s.highlightedAccounts);
+  const accounts      = useLedger((s) => s.accounts);
+  const transactions  = useLedger((s) => s.transactions);
+  const highlight     = useLedger((s) => s.highlightedAccounts);
+  const selectedTxnId = useLedger((s) => s.selectedTxnId);
 
   // Build per-account posting list, ordered chronologically
   const postingsByAccount = useMemo(() => {
-    const map = new Map<string, { txnId: number; direction: 'debit' | 'credit'; amountMinor: number; currency: string; postingId: number }[]>();
+    const map = new Map<string, Posting[]>();
     for (const t of transactions) {
       for (const p of t.postings) {
         if (!map.has(p.accountCode)) map.set(p.accountCode, []);
@@ -51,39 +68,108 @@ export default function TAccountsView() {
     return (
       <EmptyState
         title="No postings yet"
-        body="Trigger a scenario or a flow from the control panel to see T-accounts populate. Try the “Happy path” scenario as a starting point."
+        body="Trigger a flow or run a story from the Actions menu to see T-accounts populate. Try the “Happy path” story as a starting point."
       />
     );
   }
 
+  const assetSide     = visibleAccounts.filter((a) => (ASSET_SIDE_TYPES     as readonly string[]).includes(a.type));
+  const liabilitySide = visibleAccounts.filter((a) => (LIABILITY_SIDE_TYPES as readonly string[]).includes(a.type));
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 p-6">
-      {visibleAccounts.map((acct) => (
-        <TAccountCard
-          key={acct.code}
-          code={acct.code}
-          name={acct.name}
-          type={acct.type}
-          currency={acct.currency}
-          balanceMinor={acct.balanceMinor}
-          postings={postingsByAccount.get(acct.code) ?? []}
-          highlighted={highlight.includes(acct.code)}
-        />
-      ))}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-6">
+      <ColumnSection
+        label="Assets"
+        accounts={assetSide}
+        subtypes={ASSET_SIDE_TYPES}
+        postingsByAccount={postingsByAccount}
+        highlight={highlight}
+        selectedTxnId={selectedTxnId}
+      />
+      <ColumnSection
+        label="Liabilities"
+        accounts={liabilitySide}
+        subtypes={LIABILITY_SIDE_TYPES}
+        postingsByAccount={postingsByAccount}
+        highlight={highlight}
+        selectedTxnId={selectedTxnId}
+      />
     </div>
   );
 }
 
+function ColumnSection({
+  label,
+  accounts,
+  subtypes,
+  postingsByAccount,
+  highlight,
+  selectedTxnId,
+}: {
+  label: string;
+  accounts: { code: string; name: string; type: string; currency: string; balanceMinor: number }[];
+  subtypes: readonly string[];
+  postingsByAccount: Map<string, Posting[]>;
+  highlight: string[];
+  selectedTxnId: number | null;
+}) {
+  const usedSubtypes = subtypes.filter((t) => accounts.some((a) => a.type === t));
+  const showSubtypeHeaders = usedSubtypes.length > 1;
+
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-sm uppercase tracking-wide font-semibold text-[color:var(--color-muted-foreground)] border-b pb-1">
+        {label}
+      </h2>
+      {accounts.length === 0 ? (
+        <p className="text-xs text-[color:var(--color-muted-foreground)]">No {label.toLowerCase()} postings yet.</p>
+      ) : (
+        usedSubtypes.map((subtype) => {
+          const subAccounts = accounts.filter((a) => a.type === subtype);
+          if (subAccounts.length === 0) return null;
+          return (
+            <div key={subtype} className="flex flex-col gap-3">
+              {showSubtypeHeaders && (
+                <h3 className="text-[11px] uppercase tracking-wide font-medium text-[color:var(--color-muted-foreground)]">
+                  {TYPE_LABEL_PLURAL[subtype] ?? TYPE_LABEL[subtype]}
+                </h3>
+              )}
+              {subAccounts.map((acct) => {
+                const postings = postingsByAccount.get(acct.code) ?? [];
+                const txnSelected = selectedTxnId !== null && postings.some((p) => p.txnId === selectedTxnId);
+                return (
+                  <TAccountCard
+                    key={acct.code}
+                    code={acct.code}
+                    name={acct.name}
+                    type={acct.type}
+                    currency={acct.currency}
+                    balanceMinor={acct.balanceMinor}
+                    postings={postings}
+                    highlighted={highlight.includes(acct.code) || txnSelected}
+                    selectedTxnId={selectedTxnId}
+                  />
+                );
+              })}
+            </div>
+          );
+        })
+      )}
+    </section>
+  );
+}
+
 function TAccountCard({
-  code, name, type, currency, balanceMinor, postings, highlighted,
+  code, name, type, currency, balanceMinor, postings, highlighted, selectedTxnId,
 }: {
   code: string;
   name: string;
   type: string;
   currency: string;
   balanceMinor: number;
-  postings: { txnId: number; direction: 'debit' | 'credit'; amountMinor: number; currency: string; postingId: number }[];
+  postings: Posting[];
   highlighted: boolean;
+  selectedTxnId: number | null;
 }) {
   const debits  = postings.filter((p) => p.direction === 'debit');
   const credits = postings.filter((p) => p.direction === 'credit');
@@ -118,38 +204,46 @@ function TAccountCard({
         <Column title="Debits" colorClass="text-[color:var(--color-debit)]">
           <AnimatePresence initial={false}>
             {debits.map((p) => (
-              <motion.div
-                key={p.postingId}
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center justify-between px-3 py-1.5 text-sm font-mono tabular-nums"
-              >
-                <span className="text-[color:var(--color-muted-foreground)] text-xs">#{p.txnId}</span>
-                <span>{formatMoney(p.amountMinor, p.currency)}</span>
-              </motion.div>
+              <PostingRow key={p.postingId} p={p} selected={p.txnId === selectedTxnId} align="debit" />
             ))}
           </AnimatePresence>
         </Column>
         <Column title="Credits" colorClass="text-[color:var(--color-credit)]">
           <AnimatePresence initial={false}>
             {credits.map((p) => (
-              <motion.div
-                key={p.postingId}
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center justify-between px-3 py-1.5 text-sm font-mono tabular-nums"
-              >
-                <span>{formatMoney(p.amountMinor, p.currency)}</span>
-                <span className="text-[color:var(--color-muted-foreground)] text-xs">#{p.txnId}</span>
-              </motion.div>
+              <PostingRow key={p.postingId} p={p} selected={p.txnId === selectedTxnId} align="credit" />
             ))}
           </AnimatePresence>
         </Column>
       </div>
+    </motion.div>
+  );
+}
+
+function PostingRow({ p, selected, align }: { p: Posting; selected: boolean; align: 'debit' | 'credit' }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: align === 'debit' ? -8 : 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      data-selected={selected || undefined}
+      className={cn(
+        'flex items-center justify-between px-3 py-1.5 text-sm font-mono tabular-nums transition-colors',
+        selected && 'bg-[color:var(--color-accent)]/15 ring-1 ring-inset ring-[color:var(--color-accent)]/40',
+      )}
+    >
+      {align === 'debit' ? (
+        <>
+          <span className="text-[color:var(--color-muted-foreground)] text-xs">#{p.txnId}</span>
+          <span>{formatMoney(p.amountMinor, p.currency)}</span>
+        </>
+      ) : (
+        <>
+          <span>{formatMoney(p.amountMinor, p.currency)}</span>
+          <span className="text-[color:var(--color-muted-foreground)] text-xs">#{p.txnId}</span>
+        </>
+      )}
     </motion.div>
   );
 }
